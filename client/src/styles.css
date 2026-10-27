@@ -329,6 +329,8 @@ td.num input { min-width: 90px; }
 /* ---------- Print: plain white document ---------- */
 @media print {
   .no-print, .topbar { display: none !important; }
+  /* Anything injected outside the app (e.g. the "Powered by Netlify" badge) must not print. */
+  body > *:not(#root) { display: none !important; }
   html, body { background: #ffffff; color: #000000; }
   body { font-size: 12px; }
   main { padding: 0; max-width: none; }
