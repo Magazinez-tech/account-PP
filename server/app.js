@@ -2,12 +2,13 @@
 // (netlify/functions/api.js). It does not start listening itself.
 import express from 'express';
 import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { login, logout, sessionCookie, clearCookie, requireAuth, readCookie } from './auth.js';
 import { api } from './routes.js';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+// Project root = the folder the server is started from. Not import.meta.url: Netlify bundles
+// the function as CommonJS, where import.meta.url is undefined.
+const root = process.cwd();
 
 export function createApp() {
   const app = express();
