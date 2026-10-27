@@ -12,7 +12,6 @@ import ExpenseForm from './pages/ExpenseForm.jsx';
 import Accounts from './pages/Accounts.jsx';
 import Reports from './pages/Reports.jsx';
 import Settings from './pages/Settings.jsx';
-import DocumentPdf from './pages/DocumentPdf.jsx';
 import Receipts from './pages/Receipts.jsx';
 import ReceiptView from './pages/ReceiptView.jsx';
 
@@ -182,15 +181,6 @@ export default function App() {
 
   if (user === undefined) return null;
   if (user === null) return <Login onLogin={setUser} />;
-
-  // The PDF renderer loads this bare page; it has no menu.
-  const [hashPath, hashQuery = ''] = hash.split('?');
-  const pdfRoute = hashPath.match(/^\/(quotations|invoices|receipts)\/(\d+)\/pdf$/);
-  if (pdfRoute) {
-    const copies = new URLSearchParams(hashQuery).get('copies') || 'original';
-    const kind = { quotations: 'quotation', invoices: 'invoice', receipts: 'receipt' }[pdfRoute[1]];
-    return <DocumentPdf kind={kind} id={pdfRoute[2]} copies={copies} />;
-  }
 
   async function logout() {
     await api('POST', '/logout');

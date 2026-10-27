@@ -17,14 +17,6 @@ export function copyList(copies) {
   return copies === 'both' ? ['original', 'copy'] : [copies];
 }
 
-// PDF generated on the server from the same page that prints, so what you see is what is saved.
-function PdfPreview({ src }) {
-  return (
-    <div className="card pdf-preview">
-      <iframe src={src} title="ตัวอย่าง PDF" />
-    </div>
-  );
-}
 
 export default function DocumentView({ kind, id }) {
   const cfg = CONFIG[kind];
@@ -40,7 +32,6 @@ export default function DocumentView({ kind, id }) {
   }
 
   const [settings, setSettings] = useState(null);
-  const [pdfOpen, setPdfOpen] = useState(false);
   const [copies, setCopies] = useState('original');
 
   useEffect(load, [kind, id]);
@@ -113,13 +104,7 @@ export default function DocumentView({ kind, id }) {
               }
             }}>ยกเลิกเอกสาร</button>
           )}
-          {(
-            <>
-              <button onClick={() => setPdfOpen(!pdfOpen)}>{pdfOpen ? 'กลับไปดูเอกสาร' : 'ดูตัวอย่าง PDF'}</button>
-              <a className="button" href={`/api/${cfg.path}/${id}/pdf?copies=${copies}`} download>ดาวน์โหลด PDF</a>
-            </>
-          )}
-          <button onClick={() => window.print()}>พิมพ์</button>
+          <button className="primary" onClick={() => window.print()}>พิมพ์ / บันทึกเป็น PDF</button>
         </div>
       </div>
 
@@ -146,15 +131,14 @@ export default function DocumentView({ kind, id }) {
       )}
 
       <div className="card toolbar no-print copy-bar">
-        <span>แสดงและสร้าง PDF:</span>
+        <span>แสดง:</span>
         {COPY_OPTIONS.map(([value, label]) => (
           <button key={value} className={copies === value ? 'primary' : ''} onClick={() => setCopies(value)}>{label}</button>
         ))}
       </div>
-      {!pdfOpen && copyList(copies).map((copy) => (
+      {copyList(copies).map((copy) => (
         <DocumentPaper key={copy} kind={kind} doc={doc} settings={settings} copy={copy} />
       ))}
-      {pdfOpen && <PdfPreview src={`/api/${cfg.path}/${id}/pdf?copies=${copies}`} />}
 
       {kind === 'invoice' && (doc.status === 'issued' || doc.status === 'paid') && (
         <>

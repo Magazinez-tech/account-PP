@@ -4,7 +4,6 @@ import { requireAuth } from './auth.js';
 import { calcTotals, validateItems } from './money.js';
 import { postInvoice, postPayment, reverseSource, accountingSummary } from './accounting.js';
 import { accounting } from './accounting-routes.js';
-import { renderPdf } from './pdf.js';
 
 export const api = Router();
 api.use(requireAuth);
@@ -30,26 +29,6 @@ api.delete('/settings/logo', (req, res) => {
 
 // ---------- PDF ----------
 
-// Quotations and tax invoices share one PDF route each; the page itself is rendered by the React app.
-function pdfHandler(table, route, notFound) {
-  return async (req, res) => {
-    const doc = db.prepare(`SELECT id, no FROM ${table} WHERE id = ?`).get(req.params.id);
-    if (!doc) return res.status(404).json({ error: notFound });
-    const copies = ['original', 'copy', 'both'].includes(req.query.copies) ? req.query.copies : 'original';
-    try {
-      const pdf = await renderPdf({ path: `/${route}/${doc.id}/pdf?copies=${copies}`, token: req.token });
-      res.type('application/pdf');
-      res.set('Content-Disposition', `inline; filename="${doc.no || `${route}-${doc.id}`}.pdf"`);
-      res.send(Buffer.from(pdf));
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: `สร้าง PDF ไม่สำเร็จ: ${err.message}` });
-    }
-  };
-}
-
-api.get('/quotations/:id/pdf', pdfHandler('quotations', 'quotations', 'ไม่พบใบเสนอราคา'));
-api.get('/invoices/:id/pdf', pdfHandler('invoices', 'invoices', 'ไม่พบใบกำกับภาษี'));
 
 // ---------- Company settings (printed on documents) ----------
 
@@ -487,20 +466,6 @@ api.get('/receipts/:id', (req, res) => {
   res.json(doc);
 });
 
-api.get('/receipts/:id/pdf', async (req, res) => {
-  const row = db.prepare('SELECT id, receipt_no FROM payments WHERE id = ?').get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'ไม่พบใบเสร็จรับเงิน' });
-  const copies = ['original', 'copy', 'both'].includes(req.query.copies) ? req.query.copies : 'original';
-  try {
-    const pdf = await renderPdf({ path: `/receipts/${row.id}/pdf?copies=${copies}`, token: req.token });
-    res.type('application/pdf');
-    res.set('Content-Disposition', `inline; filename="${row.receipt_no}.pdf"`);
-    res.send(Buffer.from(pdf));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: `สร้าง PDF ไม่สำเร็จ: ${err.message}` });
-  }
-});
 
 // ---------- Dashboard & reports ----------
 

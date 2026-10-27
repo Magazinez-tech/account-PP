@@ -9,7 +9,6 @@ export default function ReceiptView({ id }) {
   const [doc, setDoc] = useState(null);
   const [settings, setSettings] = useState(null);
   const [copies, setCopies] = useState('original');
-  const [pdfOpen, setPdfOpen] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -45,9 +44,7 @@ export default function ReceiptView({ id }) {
         </div>
         <div className="actions">
           <a className="button" href={`#/invoices/${doc.invoice_id}`}>ดูใบกำกับภาษี</a>
-          <button onClick={() => setPdfOpen(!pdfOpen)}>{pdfOpen ? 'กลับไปดูเอกสาร' : 'ดูตัวอย่าง PDF'}</button>
-          <a className="button" href={`/api/receipts/${id}/pdf?copies=${copies}`} download>ดาวน์โหลด PDF</a>
-          <button onClick={() => window.print()}>พิมพ์</button>
+          <button className="primary" onClick={() => window.print()}>พิมพ์ / บันทึกเป็น PDF</button>
           <button className="ghost danger" onClick={cancelReceipt}>ยกเลิกใบเสร็จ</button>
         </div>
       </div>
@@ -56,20 +53,15 @@ export default function ReceiptView({ id }) {
       {error && <div className="error no-print">{error}</div>}
 
       <div className="card toolbar no-print copy-bar">
-        <span>แสดงและสร้าง PDF:</span>
+        <span>แสดง:</span>
         {COPY_OPTIONS.map(([value, label]) => (
           <button key={value} className={copies === value ? 'primary' : ''} onClick={() => setCopies(value)}>{label}</button>
         ))}
       </div>
 
-      {!pdfOpen && copyList(copies).map((copy) => (
+      {copyList(copies).map((copy) => (
         <DocumentPaper key={copy} kind="receipt" doc={doc} settings={settings} copy={copy} />
       ))}
-      {pdfOpen && (
-        <div className="card pdf-preview">
-          <iframe src={`/api/receipts/${id}/pdf?copies=${copies}`} title="ตัวอย่าง PDF" />
-        </div>
-      )}
     </div>
   );
 }
