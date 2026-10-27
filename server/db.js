@@ -1,28 +1,101 @@
-import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// PostgreSQL access (Supabase in production). Every query goes through `db` or a transaction handle.
+import pg from 'pg';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-mkdirSync(join(root, 'data'), { recursive: true });
+// int8 (COUNT, SUM of int4) and numeric come back as numbers, not strings. Amounts stay well within range.
+pg.types.setTypeParser(20, (v) => Number(v));
+pg.types.setTypeParser(1700, (v) => Number(v));
 
-export const db = new DatabaseSync(process.env.DB_PATH || join(root, 'data', 'app.db'));
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+const { Pool } = pg;
 
-db.exec(`
+if (!process.env.DATABASE_URL) {
+  console.warn('DATABASE_URL is not set. Set it to the Supabase connection string (Transaction pooler).');
+}
+
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  // Supabase requires SSL. Set DATABASE_SSL=false only for a local test database.
+  ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
+  max: 5,
+});
+
+function handle(querier) {
+  return {
+    async one(text, params = []) {
+      const res = await querier.query(text, params);
+      return res.rows[0] ?? null;
+    },
+    async many(text, params = []) {
+      const res = await querier.query(text, params);
+      return res.rows;
+    },
+    async run(text, params = []) {
+      return querier.query(text, params);
+    },
+  };
+}
+
+export const db = handle(pool);
+
+// Runs fn inside one transaction. fn receives a handle bound to that transaction.
+export async function tx(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(handle(client));
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Gapless running number per key, e.g. INV-2026-0001. Atomic under concurrency.
+export async function nextNumber(d, prefix) {
+  const key = `${prefix}-${new Date().getFullYear()}`;
+  return `${key}-${String(await nextCounter(d, key)).padStart(4, '0')}`;
+}
+
+// Running number without year, e.g. EST00024.
+export async function nextRunningNo(d, prefix, width = 5) {
+  return `${prefix}${String(await nextCounter(d, prefix)).padStart(width, '0')}`;
+}
+
+// Quotation number PP-MM-NNNN: MM is the month of the issue date, NNNN restarts every month.
+export async function nextMonthlyNo(d, prefix, issueDate) {
+  const [year, month] = issueDate.split('-');
+  const value = await nextCounter(d, `${prefix}-${year}-${month}`);
+  return `${prefix}-${month}-${String(value).padStart(4, '0')}`;
+}
+
+async function nextCounter(d, key) {
+  const row = await d.one(
+    `INSERT INTO counters (key, value) VALUES ($1, 1)
+     ON CONFLICT (key) DO UPDATE SET value = counters.value + 1
+     RETURNING value`,
+    [key],
+  );
+  return row.value;
+}
+
+// Tables and indexes. Safe to run on every start. RLS is enabled so the public Supabase API
+// (anon key) cannot read the tables; this server connects as the table owner, which bypasses RLS.
+export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'staff',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
   token TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS counters (
@@ -31,8 +104,9 @@ CREATE TABLE IF NOT EXISTS counters (
 );
 
 CREATE TABLE IF NOT EXISTS customers (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
+  company_name TEXT,
   tax_id TEXT,
   branch TEXT,
   address TEXT,
@@ -41,11 +115,11 @@ CREATE TABLE IF NOT EXISTS customers (
   email TEXT,
   credit_days INTEGER NOT NULL DEFAULT 30,
   note TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS quotations (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   no TEXT UNIQUE,
   customer_id INTEGER NOT NULL REFERENCES customers(id),
   issue_date TEXT NOT NULL,
@@ -57,15 +131,18 @@ CREATE TABLE IF NOT EXISTS quotations (
   total INTEGER NOT NULL DEFAULT 0,
   note TEXT,
   invoice_id INTEGER,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  project_name TEXT,
+  reference_no TEXT,
+  salesperson TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS quotation_items (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   quotation_id INTEGER NOT NULL REFERENCES quotations(id) ON DELETE CASCADE,
   description TEXT NOT NULL,
-  qty REAL NOT NULL,
+  qty DOUBLE PRECISION NOT NULL,
   unit TEXT,
   unit_price INTEGER NOT NULL,
   amount INTEGER NOT NULL,
@@ -73,7 +150,7 @@ CREATE TABLE IF NOT EXISTS quotation_items (
 );
 
 CREATE TABLE IF NOT EXISTS invoices (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   no TEXT UNIQUE,
   customer_id INTEGER NOT NULL REFERENCES customers(id),
   quotation_id INTEGER REFERENCES quotations(id),
@@ -86,15 +163,18 @@ CREATE TABLE IF NOT EXISTS invoices (
   total INTEGER NOT NULL DEFAULT 0,
   paid INTEGER NOT NULL DEFAULT 0,
   note TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  project_name TEXT,
+  reference_no TEXT,
+  salesperson TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS invoice_items (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
   description TEXT NOT NULL,
-  qty REAL NOT NULL,
+  qty DOUBLE PRECISION NOT NULL,
   unit TEXT,
   unit_price INTEGER NOT NULL,
   amount INTEGER NOT NULL,
@@ -102,40 +182,39 @@ CREATE TABLE IF NOT EXISTS invoice_items (
 );
 
 CREATE TABLE IF NOT EXISTS payments (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   invoice_id INTEGER NOT NULL REFERENCES invoices(id),
   receipt_no TEXT NOT NULL UNIQUE,
   paid_date TEXT NOT NULL,
   amount INTEGER NOT NULL,
   method TEXT NOT NULL DEFAULT 'cash',
   note TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- General ledger: chart of accounts, journal entries (double entry) and their lines.
 CREATE TABLE IF NOT EXISTS accounts (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   code TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
-  type TEXT NOT NULL,            -- asset | liability | equity | revenue | expense
-  normal TEXT NOT NULL,          -- debit | credit (side that increases the account)
-  sys_key TEXT UNIQUE,           -- used by automatic postings, e.g. 'ar', 'bank'
+  type TEXT NOT NULL,
+  normal TEXT NOT NULL,
+  sys_key TEXT UNIQUE,
   active INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS journal_entries (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   entry_no TEXT NOT NULL UNIQUE,
   entry_date TEXT NOT NULL,
   description TEXT NOT NULL,
-  source TEXT NOT NULL,          -- manual | expense | invoice | payment | reversal
+  source TEXT NOT NULL,
   source_id INTEGER,
   reversed_of INTEGER REFERENCES journal_entries(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS journal_lines (
-  id INTEGER PRIMARY KEY,
+  id SERIAL PRIMARY KEY,
   entry_id INTEGER NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
   account_id INTEGER NOT NULL REFERENCES accounts(id),
   debit INTEGER NOT NULL DEFAULT 0,
@@ -143,75 +222,35 @@ CREATE TABLE IF NOT EXISTS journal_lines (
   memo TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_lines_account ON journal_lines(account_id);
-CREATE INDEX IF NOT EXISTS idx_entries_source ON journal_entries(source, source_id);
-
--- Company profile printed on quotations and tax invoices (single row).
 CREATE TABLE IF NOT EXISTS company_settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   name TEXT, address TEXT, phone TEXT, email TEXT, website TEXT, tax_id TEXT,
   bank_name TEXT, bank_account_no TEXT, bank_account_name TEXT,
-  approver_name TEXT, quotation_terms TEXT
+  approver_name TEXT, quotation_terms TEXT, logo TEXT
 );
-INSERT OR IGNORE INTO company_settings (id) VALUES (1);
-`);
 
-// Adds a column to databases created before it existed.
-function addColumn(table, column, definition) {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
-  if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-}
-addColumn('customers', 'company_name', 'TEXT');
-addColumn('quotations', 'project_name', 'TEXT');
-addColumn('quotations', 'reference_no', 'TEXT');
-addColumn('quotations', 'salesperson', 'TEXT');
-addColumn('company_settings', 'logo', 'TEXT');
-addColumn('invoices', 'project_name', 'TEXT');
-addColumn('invoices', 'reference_no', 'TEXT');
-addColumn('invoices', 'salesperson', 'TEXT');
+CREATE INDEX IF NOT EXISTS idx_lines_account ON journal_lines(account_id);
+CREATE INDEX IF NOT EXISTS idx_entries_source ON journal_entries(source, source_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 
-// Runs fn inside a transaction; rolls back on any thrown error.
-export function tx(fn) {
-  db.exec('BEGIN');
-  try {
-    const result = fn();
-    db.exec('COMMIT');
-    return result;
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
-}
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE counters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quotations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quotation_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE journal_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE journal_lines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE company_settings ENABLE ROW LEVEL SECURITY;
 
-// Gapless running number without year, e.g. EST00024 for quotations.
-export function nextRunningNo(prefix, width = 5) {
-  db.prepare(`INSERT INTO counters (key, value) VALUES (?, 1)
-              ON CONFLICT(key) DO UPDATE SET value = value + 1`).run(prefix);
-  const { value } = db.prepare('SELECT value FROM counters WHERE key = ?').get(prefix);
-  return `${prefix}${String(value).padStart(width, '0')}`;
-}
+INSERT INTO company_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+`;
 
-// Quotation number PP-MM-NNNN: MM is the month of the issue date, NNNN restarts every month.
-// Example: PP-01-0001 is the first quotation issued in January.
-export function nextMonthlyNo(prefix, issueDate) {
-  const [year, month] = issueDate.split('-');
-  const key = `${prefix}-${year}-${month}`;
-  db.prepare(`INSERT INTO counters (key, value) VALUES (?, 1)
-              ON CONFLICT(key) DO UPDATE SET value = value + 1`).run(key);
-  const { value } = db.prepare('SELECT value FROM counters WHERE key = ?').get(key);
-  return `${prefix}-${month}-${String(value).padStart(4, '0')}`;
-}
-
-// Quotations created before numbering existed get a number now.
-for (const row of db.prepare('SELECT id, issue_date FROM quotations WHERE no IS NULL ORDER BY id').all()) {
-  db.prepare('UPDATE quotations SET no = ? WHERE id = ?').run(nextMonthlyNo('PP', row.issue_date), row.id);
-}
-
-// Gapless running number per prefix and year, e.g. INV-2026-0001.
-export function nextNumber(prefix) {
-  const key = `${prefix}-${new Date().getFullYear()}`;
-  db.prepare(`INSERT INTO counters (key, value) VALUES (?, 1)
-              ON CONFLICT(key) DO UPDATE SET value = value + 1`).run(key);
-  const { value } = db.prepare('SELECT value FROM counters WHERE key = ?').get(key);
-  return `${key}-${String(value).padStart(4, '0')}`;
+// Creates tables if they do not exist yet.
+export async function migrate() {
+  await pool.query(SCHEMA);
 }
