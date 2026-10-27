@@ -13,6 +13,8 @@ import Accounts from './pages/Accounts.jsx';
 import Reports from './pages/Reports.jsx';
 import Settings from './pages/Settings.jsx';
 import DocumentPdf from './pages/DocumentPdf.jsx';
+import Receipts from './pages/Receipts.jsx';
+import ReceiptView from './pages/ReceiptView.jsx';
 
 // A menu entry is either a link (href) or a group with a dropdown (items).
 const NAV = [
@@ -23,6 +25,7 @@ const NAV = [
     items: [
       { href: '#/quotations', label: 'ใบเสนอราคา' },
       { href: '#/invoices', label: 'ใบกำกับภาษี' },
+      { href: '#/receipts', label: 'ใบเสร็จรับเงิน' },
       { divider: true },
       { href: '#/quotations/new', label: '+ สร้างใบเสนอราคา' },
       { href: '#/invoices/new', label: '+ สร้างใบกำกับภาษี' },
@@ -148,6 +151,8 @@ function route(hash) {
   if (section === 'journal') return <Journal />;
   if (section === 'accounts') return <Accounts />;
   if (section === 'settings') return <Settings />;
+  if (section === 'receipts' && id) return <ReceiptView id={id} />;
+  if (section === 'receipts') return <Receipts />;
   // key=hash remounts the report when the tab or period changes, so stale data never renders.
   if (section === 'reports') return <Reports key={hash} tab={id || 'trial'} id={parts[2]} search={search} />;
   if (section === 'customers' && id) return <CustomerDetail id={id} />;
@@ -180,10 +185,11 @@ export default function App() {
 
   // The PDF renderer loads this bare page; it has no menu.
   const [hashPath, hashQuery = ''] = hash.split('?');
-  const pdfRoute = hashPath.match(/^\/(quotations|invoices)\/(\d+)\/pdf$/);
+  const pdfRoute = hashPath.match(/^\/(quotations|invoices|receipts)\/(\d+)\/pdf$/);
   if (pdfRoute) {
     const copies = new URLSearchParams(hashQuery).get('copies') || 'original';
-    return <DocumentPdf kind={pdfRoute[1] === 'invoices' ? 'invoice' : 'quotation'} id={pdfRoute[2]} copies={copies} />;
+    const kind = { quotations: 'quotation', invoices: 'invoice', receipts: 'receipt' }[pdfRoute[1]];
+    return <DocumentPdf kind={kind} id={pdfRoute[2]} copies={copies} />;
   }
 
   async function logout() {

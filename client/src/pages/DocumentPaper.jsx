@@ -20,7 +20,18 @@ const WORDING = {
     left: 'ผู้รับสินค้า / บริการ',
     right: 'ผู้มีอำนาจลงนาม',
   },
+  receipt: {
+    title: 'ใบเสร็จรับเงิน',
+    dateLabel: 'วันที่รับชำระ',
+    dueLabel: 'ตามใบกำกับภาษีเลขที่',
+    dueField: 'invoice_no',
+    dueIsDate: false,
+    left: 'ผู้จ่ายเงิน',
+    right: 'ผู้รับเงิน',
+  },
 };
+
+const METHOD_TEXT = { cash: 'เงินสด', transfer: 'โอนเงิน', cheque: 'เช็ค', card: 'บัตรเครดิต/เดบิต' };
 
 // A4 paper shared by quotations and tax invoices. The paper stays white in both themes.
 // copy: 'original' (ต้นฉบับ) or 'copy' (สำเนา)
@@ -36,7 +47,9 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
     <div className="paper">
       <header className="paper-head">
         <div className="paper-company">
-          <div className="paper-logo" aria-hidden="true">{(s.name || '?').slice(0, 1)}</div>
+          {s.logo
+            ? <img className="paper-logo-img" src={s.logo} alt="ตราบริษัท" />
+            : <div className="paper-logo" aria-hidden="true">{(s.name || '?').slice(0, 1)}</div>}
           <div className="paper-company-name">{dash(s.name)}</div>
           <div className="paper-muted">{s.address}</div>
           {s.tax_id && <div className="paper-muted">เลขประจำตัวผู้เสียภาษี: {s.tax_id}</div>}
@@ -65,7 +78,7 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
           <dt>ชื่อโปรเจกต์</dt><dd>{dash(doc.project_name)}</dd>
           <dt>เลขที่อ้างอิง</dt><dd>{dash(doc.reference_no)}</dd>
           <dt>{w.dateLabel}</dt><dd>{date(doc.issue_date)}</dd>
-          <dt>{w.dueLabel}</dt><dd>{date(doc[w.dueField])}</dd>
+          <dt>{w.dueLabel}</dt><dd>{w.dueIsDate === false ? dash(doc[w.dueField]) : date(doc[w.dueField])}</dd>
         </dl>
       </section>
 
@@ -95,17 +108,25 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
       </table>
 
       <section className="paper-bottom">
-        <div className="paper-pay">
-          <div className="paper-section-title">ช่องทางการชำระเงิน</div>
-          <div>ธนาคาร: {dash(s.bank_name)}</div>
-          <div>เลขบัญชี: {dash(s.bank_account_no)}</div>
-          <div>ชื่อบัญชี: {dash(s.bank_account_name)}</div>
-        </div>
+        {kind === 'receipt' ? (
+          <div className="paper-pay">
+            <div className="paper-section-title">การรับชำระ</div>
+            <div>วิธีชำระ: {METHOD_TEXT[doc.method] || dash(doc.method)}</div>
+            <div>ยอดค้างของใบกำกับภาษี: {money(doc.invoice_outstanding)} บาท</div>
+          </div>
+        ) : (
+          <div className="paper-pay">
+            <div className="paper-section-title">ช่องทางการชำระเงิน</div>
+            <div>ธนาคาร: {dash(s.bank_name)}</div>
+            <div>เลขบัญชี: {dash(s.bank_account_no)}</div>
+            <div>ชื่อบัญชี: {dash(s.bank_account_name)}</div>
+          </div>
+        )}
         <div className="paper-sum">
           <div><span>ยอดรวม</span><span>{money(doc.subtotal)}</span></div>
           {doc.discount > 0 && <div><span>ส่วนลด</span><span>{money(doc.discount)}</span></div>}
           <div><span>ภาษีมูลค่าเพิ่ม (7.00%)</span><span>{money(doc.vat)}</span></div>
-          <div className="paper-grand"><span>ยอดรวมสุทธิ</span><span>{money(doc.total)}</span></div>
+          <div className="paper-grand"><span>{kind === 'receipt' ? 'จำนวนเงินที่รับชำระ' : 'ยอดรวมสุทธิ'}</span><span>{money(doc.total)}</span></div>
           {isInvoice && doc.status !== 'draft' && (
             <>
               <div><span>ชำระแล้ว</span><span>{money(doc.paid)}</span></div>
@@ -121,7 +142,7 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
           <div className="pre">{doc.note}</div>
         </section>
       )}
-      {!isInvoice && s.quotation_terms && (
+      {kind === 'quotation' && s.quotation_terms && (
         <section className="paper-note">
           <div className="paper-section-title">เงื่อนไข</div>
           <div className="pre">{s.quotation_terms}</div>

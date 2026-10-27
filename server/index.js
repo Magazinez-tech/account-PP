@@ -9,7 +9,7 @@ import { seedChart, backfill } from './accounting.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const app = express();
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '2mb' }));
 
 seedAdmin();
 seedChart();

@@ -10,6 +10,24 @@ export const api = Router();
 api.use(requireAuth);
 api.use(accounting);
 
+// Company logo / stamp, stored as a data URL so it prints without a file server.
+const LOGO_MAX_BYTES = 700 * 1024;
+const LOGO_PATTERN = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+
+api.put('/settings/logo', (req, res) => {
+  const data = String(req.body.data || '');
+  if (!LOGO_PATTERN.test(data)) return badRequest(res, 'รองรับเฉพาะไฟล์รูป PNG, JPG หรือ WEBP');
+  const bytes = Math.floor((data.split(',')[1].length * 3) / 4);
+  if (bytes > LOGO_MAX_BYTES) return badRequest(res, 'ไฟล์รูปต้องมีขนาดไม่เกิน 700 KB');
+  db.prepare('UPDATE company_settings SET logo = ? WHERE id = 1').run(data);
+  res.json({ ok: true });
+});
+
+api.delete('/settings/logo', (req, res) => {
+  db.prepare('UPDATE company_settings SET logo = NULL WHERE id = 1').run();
+  res.json({ ok: true });
+});
+
 // ---------- PDF ----------
 
 // Quotations and tax invoices share one PDF route each; the page itself is rendered by the React app.
@@ -414,6 +432,74 @@ api.delete('/payments/:id', (req, res) => {
     db.prepare(`UPDATE invoices SET paid = ?, status = ?, updated_at = datetime('now') WHERE id = ?`).run(paid, status, invoice.id);
   });
   res.json({ ok: true });
+});
+
+// ---------- Receipts (ใบเสร็จรับเงิน): one receipt per payment ----------
+
+api.get('/receipts', (req, res) => {
+  const rows = db.prepare(`SELECT p.id, p.receipt_no, p.paid_date, p.amount, p.method,
+                             i.id AS invoice_id, i.no AS invoice_no, c.name AS customer_name
+                           FROM payments p
+                           JOIN invoices i ON i.id = p.invoice_id
+                           JOIN customers c ON c.id = i.customer_id
+                           ORDER BY p.paid_date DESC, p.id DESC LIMIT 500`).all();
+  res.json(rows);
+});
+
+// Builds the receipt in the same shape as a quotation or invoice so the shared paper layout can print it.
+function receiptOf(id) {
+  const p = db.prepare(`SELECT p.*, i.no AS invoice_no, i.total AS invoice_total, i.vat AS invoice_vat, i.paid AS invoice_paid,
+                          i.customer_id, i.project_name, i.salesperson, i.status AS invoice_status
+                        FROM payments p JOIN invoices i ON i.id = p.invoice_id WHERE p.id = ?`).get(id);
+  if (!p) return null;
+  // The amount received includes VAT. Its VAT share follows the invoice's VAT ratio,
+  // so a partial payment shows the same tax split as the tax invoice.
+  const vat = p.invoice_total > 0 ? Math.round((p.amount * p.invoice_vat) / p.invoice_total) : 0;
+  const subtotal = p.amount - vat;
+  return {
+    id: p.id,
+    no: p.receipt_no,
+    issue_date: p.paid_date,
+    customer: db.prepare('SELECT * FROM customers WHERE id = ?').get(p.customer_id),
+    items: [{
+      description: `ชำระค่าสินค้า/บริการตามใบกำกับภาษีเลขที่ ${p.invoice_no}`,
+      qty: 1, unit: null, unit_price: subtotal, amount: subtotal,
+    }],
+    subtotal,
+    discount: 0,
+    vat,
+    total: p.amount,
+    method: p.method,
+    note: p.note,
+    invoice_id: p.invoice_id,
+    invoice_no: p.invoice_no,
+    invoice_outstanding: p.invoice_total - p.invoice_paid,
+    project_name: p.project_name,
+    reference_no: p.invoice_no,
+    salesperson: p.salesperson,
+    status: 'paid',
+  };
+}
+
+api.get('/receipts/:id', (req, res) => {
+  const doc = receiptOf(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'ไม่พบใบเสร็จรับเงิน' });
+  res.json(doc);
+});
+
+api.get('/receipts/:id/pdf', async (req, res) => {
+  const row = db.prepare('SELECT id, receipt_no FROM payments WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'ไม่พบใบเสร็จรับเงิน' });
+  const copies = ['original', 'copy', 'both'].includes(req.query.copies) ? req.query.copies : 'original';
+  try {
+    const pdf = await renderPdf({ path: `/receipts/${row.id}/pdf?copies=${copies}`, token: req.token });
+    res.type('application/pdf');
+    res.set('Content-Disposition', `inline; filename="${row.receipt_no}.pdf"`);
+    res.send(Buffer.from(pdf));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: `สร้าง PDF ไม่สำเร็จ: ${err.message}` });
+  }
 });
 
 // ---------- Dashboard & reports ----------

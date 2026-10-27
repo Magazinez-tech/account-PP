@@ -22,9 +22,53 @@ export default function Settings() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const [logo, setLogo] = useState(null);
+
   useEffect(() => {
-    api('GET', '/settings').then((s) => setForm(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v || ''])))).catch((e) => setError(e.message));
+    api('GET', '/settings').then((s) => {
+      setLogo(s.logo || null);
+      setForm(Object.fromEntries(Object.entries(s).filter(([k]) => k !== 'logo').map(([k, v]) => [k, v || ''])));
+    }).catch((e) => setError(e.message));
   }, []);
+
+  // Reads the chosen image, then sends it to the server (which checks the type and size again).
+  function pickLogo(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setError('รองรับเฉพาะไฟล์รูป PNG, JPG หรือ WEBP');
+      return;
+    }
+    if (file.size > 700 * 1024) {
+      setError('ไฟล์รูปต้องมีขนาดไม่เกิน 700 KB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setError('');
+      setMessage('');
+      try {
+        await api('PUT', '/settings/logo', { data: reader.result });
+        setLogo(reader.result);
+        setMessage('อัปโหลดตราบริษัทแล้ว');
+      } catch (err) {
+        setError(err.message);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function removeLogo() {
+    if (!window.confirm('ลบตราบริษัทใช่หรือไม่?')) return;
+    try {
+      await api('DELETE', '/settings/logo');
+      setLogo(null);
+      setMessage('ลบตราบริษัทแล้ว');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   if (!form) return error ? <div className="error">{error}</div> : <p>กำลังโหลด...</p>;
 
@@ -51,6 +95,23 @@ export default function Settings() {
       <p className="muted">ข้อมูลนี้จะแสดงบนหัวใบเสนอราคาและใบกำกับภาษี</p>
       {message && <div className="success">{message}</div>}
       {error && <div className="error">{error}</div>}
+      <div className="card logo-box">
+        <div className="logo-preview">
+          {logo ? <img src={logo} alt="ตราบริษัท" /> : <span className="muted">ยังไม่มีตรา</span>}
+        </div>
+        <div className="logo-actions">
+          <div className="section-label">ตราบริษัท (PNG, JPG หรือ WEBP ไม่เกิน 700 KB)</div>
+          <div className="actions">
+            <label className="file-btn">
+              เลือกรูป
+              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickLogo} />
+            </label>
+            {logo && <button type="button" className="ghost danger" onClick={removeLogo}>ลบตรา</button>}
+          </div>
+          <div className="muted small">ตราจะแสดงที่หัวใบเสนอราคา ใบกำกับภาษี และใบเสร็จ แทนตัวอักษรแรกของชื่อบริษัท</div>
+        </div>
+      </div>
+
       <form className="card form-grid" onSubmit={save}>
         {FIELDS.map(([key, label, cls, required, kind]) => (
           <label key={key} className={cls || ''}>

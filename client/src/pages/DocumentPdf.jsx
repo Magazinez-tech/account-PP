@@ -8,7 +8,7 @@ import DocumentPaper from './DocumentPaper.jsx';
 export default function DocumentPdf({ kind, id, copies = 'original' }) {
   const [doc, setDoc] = useState(null);
   const [settings, setSettings] = useState(null);
-  const path = kind === 'invoice' ? 'invoices' : 'quotations';
+  const path = { invoice: 'invoices', receipt: 'receipts' }[kind] || 'quotations';
   const list = copies === 'both' ? ['original', 'copy'] : [copies];
 
   useEffect(() => {

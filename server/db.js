@@ -165,6 +165,7 @@ addColumn('customers', 'company_name', 'TEXT');
 addColumn('quotations', 'project_name', 'TEXT');
 addColumn('quotations', 'reference_no', 'TEXT');
 addColumn('quotations', 'salesperson', 'TEXT');
+addColumn('company_settings', 'logo', 'TEXT');
 addColumn('invoices', 'project_name', 'TEXT');
 addColumn('invoices', 'reference_no', 'TEXT');
 addColumn('invoices', 'salesperson', 'TEXT');
