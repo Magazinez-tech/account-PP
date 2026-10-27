@@ -78,7 +78,7 @@ export default function CustomersPage() {
 
       <div className="toolbar">
         <input
-          placeholder="ค้นหาจากชื่อ เลขผู้เสียภาษี หรือเบอร์โทร"
+          placeholder="ค้นหาจากชื่อ ชื่อบริษัท เลขผู้เสียภาษี หรือเบอร์โทร"
           value={q}
           onChange={(e) => { setQ(e.target.value); load(e.target.value); }}
         />
@@ -88,12 +88,13 @@ export default function CustomersPage() {
       <div className="card table-wrap">
         <table>
           <thead>
-            <tr><th>ชื่อ</th><th>เลขผู้เสียภาษี</th><th>โทรศัพท์</th><th className="num">เครดิต (วัน)</th></tr>
+            <tr><th>ชื่อบริษัท</th><th>ชื่อ</th><th>เลขผู้เสียภาษี</th><th>โทรศัพท์</th><th className="num">เครดิต (วัน)</th></tr>
           </thead>
           <tbody>
-            {customers.length === 0 && <tr><td colSpan="4" className="muted">ยังไม่มีข้อมูลลูกค้า</td></tr>}
+            {customers.length === 0 && <tr><td colSpan="5" className="muted">ยังไม่มีข้อมูลลูกค้า</td></tr>}
             {customers.map((c) => (
               <tr key={c.id}>
+                <td><a href={`#/customers/${c.id}`}>{c.company_name || '-'}</a></td>
                 <td><a href={`#/customers/${c.id}`}>{c.name}</a></td>
                 <td>{c.tax_id || '-'}</td>
                 <td>{c.phone || '-'}</td>

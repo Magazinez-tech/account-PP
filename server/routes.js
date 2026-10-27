@@ -23,7 +23,7 @@ api.use(purchasing);
 api.get('/customers', h(async (req, res) => {
   const q = `%${req.query.q || ''}%`;
   res.json(await db.many(`SELECT * FROM customers
-                          WHERE name ILIKE $1 OR tax_id ILIKE $1 OR phone ILIKE $1
+                          WHERE name ILIKE $1 OR company_name ILIKE $1 OR tax_id ILIKE $1 OR phone ILIKE $1
                           ORDER BY name LIMIT 500`, [q]));
 }));
 
