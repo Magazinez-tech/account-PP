@@ -30,8 +30,8 @@ export async function seedAdmin(d = db) {
 }
 
 export async function login(email, password) {
-  const user = await db.one('SELECT * FROM users WHERE email = $1', [email]);
-  if (!user || !verifyPassword(password, user.password_hash)) return null;
+  const user = await db.one('SELECT * FROM users WHERE lower(email) = lower($1)', [email]);
+  if (!user || !user.active || !verifyPassword(password, user.password_hash)) return null;
   const token = randomBytes(32).toString('hex');
   await db.run('INSERT INTO sessions (token, user_id) VALUES ($1, $2)', [token, user.id]);
   return { token, user: publicUser(user) };
@@ -42,7 +42,14 @@ export async function logout(token) {
 }
 
 export function publicUser(user) {
-  return { id: user.id, email: user.email, name: user.name, role: user.role };
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    permissions: user.permissions || {},
+    active: user.active !== false,
+  };
 }
 
 export function readCookie(req, name) {
@@ -64,7 +71,8 @@ export async function requireAuth(req, res, next) {
   try {
     const token = readCookie(req, COOKIE);
     if (!token) return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบ' });
-    const row = await db.one(`SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = $1`, [token]);
+    const row = await db.one(`SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
+                              WHERE s.token = $1 AND u.active`, [token]);
     if (!row) return res.status(401).json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
     req.user = publicUser(row);
     req.token = token;

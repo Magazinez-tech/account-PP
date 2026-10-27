@@ -924,3 +924,12 @@ tfoot .total-row td { background: var(--surface-2); }
 }
 .file-btn:hover { background: var(--primary-hover); }
 .file-btn input { display: none; }
+
+/* ---------- Users and permissions ---------- */
+.perm-table th.center, .perm-table td.center { text-align: center; width: 120px; }
+.perm-table input[type="radio"] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+.perm-table input[type="radio"]:disabled { cursor: not-allowed; }
+.perm-table tr.muted td { opacity: 0.6; }
+.actions-cell { white-space: nowrap; text-align: right; }
+.user-link { color: var(--text-2); font-weight: 500; }
+.user-link:hover { color: #ffffff; }

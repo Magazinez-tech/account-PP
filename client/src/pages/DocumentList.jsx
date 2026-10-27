@@ -24,7 +24,7 @@ export default function DocumentList({ kind }) {
       </div>
 
       <div className="toolbar">
-        <SearchBox value={q} onChange={setQ} placeholder="ค้นหาจากเลขที่ ลูกค้า หรือยอดเงิน" />
+        <SearchBox value={q} onChange={setQ} placeholder={`ค้นหาจากเลขที่ ${cfg.partyLabel || 'ลูกค้า'} หรือยอดเงิน`} />
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">ทุกสถานะ</option>
           {cfg.statuses.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
@@ -36,7 +36,7 @@ export default function DocumentList({ kind }) {
         <table>
           <thead>
             <tr>
-              <th>เลขที่</th><th>วันที่</th><th>ลูกค้า</th><th>สถานะ</th><th className="num">ยอดสุทธิ (บาท)</th>
+              <th>เลขที่</th><th>วันที่</th><th>{cfg.partyLabel || 'ลูกค้า'}</th><th>สถานะ</th><th className="num">ยอดสุทธิ (บาท)</th>
             </tr>
           </thead>
           <tbody>

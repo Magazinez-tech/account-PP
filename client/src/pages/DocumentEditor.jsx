@@ -38,7 +38,7 @@ export default function DocumentEditor({ kind, id }) {
   const [loaded, setLoaded] = useState(!isEdit);
 
   useEffect(() => {
-    api('GET', '/customers').then(setCustomers).catch((e) => setError(e.message));
+    api('GET', cfg.partyApi || '/customers').then(setCustomers).catch((e) => setError(e.message));
     if (!isEdit) return;
     api('GET', `${cfg.api}/${id}`).then((doc) => {
       setForm({
@@ -93,9 +93,9 @@ export default function DocumentEditor({ kind, id }) {
       </div>
 
       <div className="card form-grid">
-        <label className="span-2">ลูกค้า *
+        <label className="span-2">{cfg.partyLabel || 'ลูกค้า'} *
           <select value={form.customer_id} onChange={set('customer_id')} required>
-            <option value="">-- เลือกลูกค้า --</option>
+            <option value="">-- เลือก{cfg.partyLabel || 'ลูกค้า'} --</option>
             {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </label>
@@ -104,7 +104,7 @@ export default function DocumentEditor({ kind, id }) {
           <>
             <label>ชื่อโปรเจกต์<input value={form.project_name} onChange={set('project_name')} /></label>
             <label>เลขที่อ้างอิง<input value={form.reference_no} onChange={set('reference_no')} /></label>
-            <label>ชื่อผู้ขาย<input value={form.salesperson} onChange={set('salesperson')} /></label>
+            <label>{cfg.personLabel || 'ชื่อผู้ขาย'}<input value={form.salesperson} onChange={set('salesperson')} /></label>
           </>
         <label className="span-2">หมายเหตุ<input value={form.note} onChange={set('note')} /></label>
       </div>

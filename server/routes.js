@@ -5,46 +5,18 @@ import { calcTotals, validateItems } from './money.js';
 import { postInvoice, postPayment, reverseSource, accountingSummary } from './accounting.js';
 import { accounting } from './accounting-routes.js';
 import { BizError } from './errors.js';
+import { h, today, addDays, text, projectOf, insertItems, loadDocument, partyFields } from './helpers.js';
+import { purchasing } from './purchase-routes.js';
+import { users } from './users-routes.js';
+import { checkPermission } from './permissions.js';
 
 export const api = Router();
 api.use(requireAuth);
+api.use(checkPermission);
+api.use(users);
 api.use(accounting);
+api.use(purchasing);
 
-// Wraps async handlers: business errors become 400, everything else goes to the error handler (500).
-const h = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch((err) => {
-  if (err instanceof BizError) return res.status(400).json({ error: err.message });
-  next(err);
-});
-
-const today = () => new Date().toISOString().slice(0, 10);
-
-function addDays(date, days) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + Number(days || 0));
-  return d.toISOString().slice(0, 10);
-}
-
-const text = (v) => String(v || '').trim() || null;
-
-// Project, reference and salesperson fields shown on both quotations and tax invoices.
-function projectOf(body) {
-  return { project: text(body.project_name), reference: text(body.reference_no), salesperson: text(body.salesperson) };
-}
-
-async function insertItems(d, table, parentColumn, parentId, lines) {
-  for (const line of lines) {
-    await d.run(`INSERT INTO ${table} (${parentColumn}, description, qty, unit, unit_price, amount, sort)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [parentId, line.description, line.qty, line.unit, line.unit_price, line.amount, line.sort]);
-  }
-}
-
-async function loadDocument(table, itemsTable, parentColumn, id) {
-  const doc = await db.one(`SELECT * FROM ${table} WHERE id = $1`, [id]);
-  if (!doc) return null;
-  doc.items = await db.many(`SELECT * FROM ${itemsTable} WHERE ${parentColumn} = $1 ORDER BY sort, id`, [id]);
-  return doc;
-}
 
 // ---------- Customers ----------
 
@@ -63,20 +35,7 @@ api.get('/customers/:id', h(async (req, res) => {
   res.json({ ...customer, invoices });
 }));
 
-function customerFields(body) {
-  return {
-    name: String(body.name || '').trim(),
-    company_name: text(body.company_name),
-    tax_id: text(body.tax_id),
-    branch: text(body.branch),
-    address: text(body.address),
-    contact_name: text(body.contact_name),
-    phone: text(body.phone),
-    email: text(body.email),
-    credit_days: Number.isInteger(Number(body.credit_days)) ? Number(body.credit_days) : 30,
-    note: text(body.note),
-  };
-}
+const customerFields = partyFields;
 
 api.post('/customers', h(async (req, res) => {
   const f = customerFields(req.body);
@@ -468,7 +427,9 @@ api.get('/dashboard', h(async (req, res) => {
                                   ORDER BY i.due_date LIMIT 8`);
   const dueThisMonth = await db.many(`SELECT due_date, total, paid FROM invoices
                                       WHERE status = 'issued' AND total > paid AND left(due_date, 7) = $1`, [month]);
+  const payables = await db.one(`SELECT COALESCE(SUM(total - paid), 0) AS total FROM purchase_orders WHERE status = 'received'`);
   res.json({
+    payables: payables.total,
     salesThisMonth: sales.total,
     outstanding: outstanding.total,
     overdue: overdue.total,

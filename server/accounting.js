@@ -153,6 +153,37 @@ export async function postPayment(d, payment, invoiceNo) {
   });
 }
 
+// Goods/services received against a PO, billed by the supplier:
+// Dr expense or asset (subtotal - discount) + Dr input VAT, Cr accounts payable (total).
+export async function postPurchase(d, po, accountId) {
+  return postEntry(d, {
+    date: po.received_date,
+    description: `รับสินค้า/ตั้งหนี้ ${po.no}${po.bill_no ? ` (ใบกำกับผู้ขาย ${po.bill_no})` : ''}`,
+    source: 'purchase',
+    sourceId: po.id,
+    lines: [
+      { account_id: accountId, debit: po.subtotal - po.discount },
+      { account_id: await sysAccount(d, 'input_vat'), debit: po.vat },
+      { account_id: await sysAccount(d, 'ap'), credit: po.total },
+    ],
+  });
+}
+
+// Payment to a supplier: Dr accounts payable, Cr cash or bank.
+export async function postSupplierPayment(d, payment, poNo) {
+  const cash = payment.method === 'cash' ? 'cash' : 'bank';
+  return postEntry(d, {
+    date: payment.paid_date,
+    description: `จ่ายชำระ ${payment.payment_no} ตาม ${poNo}`,
+    source: 'supplier_payment',
+    sourceId: payment.id,
+    lines: [
+      { account_id: await sysAccount(d, 'ap'), debit: payment.amount },
+      { account_id: await sysAccount(d, cash), credit: payment.amount },
+    ],
+  });
+}
+
 // Expense paid now (cash/bank) or on credit (ap). Input VAT is recorded separately so it can be claimed.
 export async function postExpense(d, { date, description, accountId, amount, withVat, payFrom }) {
   const vat = withVat ? Math.round((amount * VAT_RATE) / 100) : 0;

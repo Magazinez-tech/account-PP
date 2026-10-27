@@ -9,6 +9,8 @@ const SOURCE_LABEL = {
   invoice: 'ใบกำกับภาษี',
   payment: 'รับชำระ',
   reversal: 'กลับรายการ',
+  purchase: 'ซื้อ/ตั้งหนี้',
+  supplier_payment: 'จ่ายผู้ขาย',
 };
 
 const today = () => new Date().toISOString().slice(0, 10);

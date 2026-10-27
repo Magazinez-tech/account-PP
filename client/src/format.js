@@ -18,6 +18,8 @@ export const STATUS_LABEL = {
   accepted: 'อนุมัติ',
   rejected: 'ปฏิเสธ',
   issued: 'ออกแล้ว (ค้างชำระ)',
+  approved: 'อนุมัติแล้ว',
+  received: 'รับสินค้าแล้ว (ค้างจ่าย)',
   paid: 'ชำระครบแล้ว',
   cancelled: 'ยกเลิก',
 };

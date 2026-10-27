@@ -91,6 +91,9 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'staff',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Per-module access for staff users, e.g. {"sales": "edit", "reports": "view"}. Admins have everything.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE;
 
 CREATE TABLE IF NOT EXISTS sessions (
   token TEXT PRIMARY KEY,
@@ -229,6 +232,68 @@ CREATE TABLE IF NOT EXISTS company_settings (
   approver_name TEXT, quotation_terms TEXT, logo TEXT
 );
 
+-- Purchasing: suppliers, purchase orders (PO), and payments made to suppliers.
+CREATE TABLE IF NOT EXISTS suppliers (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  company_name TEXT,
+  tax_id TEXT,
+  branch TEXT,
+  address TEXT,
+  contact_name TEXT,
+  phone TEXT,
+  email TEXT,
+  credit_days INTEGER NOT NULL DEFAULT 30,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS purchase_orders (
+  id SERIAL PRIMARY KEY,
+  no TEXT UNIQUE,
+  supplier_id INTEGER NOT NULL REFERENCES suppliers(id),
+  issue_date TEXT NOT NULL,
+  expected_date TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  discount INTEGER NOT NULL DEFAULT 0,
+  subtotal INTEGER NOT NULL DEFAULT 0,
+  vat INTEGER NOT NULL DEFAULT 0,
+  total INTEGER NOT NULL DEFAULT 0,
+  paid INTEGER NOT NULL DEFAULT 0,
+  note TEXT,
+  project_name TEXT,
+  reference_no TEXT,
+  salesperson TEXT,
+  received_date TEXT,
+  due_date TEXT,
+  bill_no TEXT,
+  account_id INTEGER REFERENCES accounts(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS purchase_order_items (
+  id SERIAL PRIMARY KEY,
+  purchase_order_id INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+  description TEXT NOT NULL,
+  qty DOUBLE PRECISION NOT NULL,
+  unit TEXT,
+  unit_price INTEGER NOT NULL,
+  amount INTEGER NOT NULL,
+  sort INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS supplier_payments (
+  id SERIAL PRIMARY KEY,
+  purchase_order_id INTEGER NOT NULL REFERENCES purchase_orders(id),
+  payment_no TEXT NOT NULL UNIQUE,
+  paid_date TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  method TEXT NOT NULL DEFAULT 'transfer',
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_lines_account ON journal_lines(account_id);
 CREATE INDEX IF NOT EXISTS idx_entries_source ON journal_entries(source, source_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
@@ -246,6 +311,10 @@ ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE journal_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE journal_lines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE company_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE purchase_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE purchase_order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE supplier_payments ENABLE ROW LEVEL SECURITY;
 
 INSERT INTO company_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 `;

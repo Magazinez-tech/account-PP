@@ -14,42 +14,89 @@ import Reports from './pages/Reports.jsx';
 import Settings from './pages/Settings.jsx';
 import Receipts from './pages/Receipts.jsx';
 import ReceiptView from './pages/ReceiptView.jsx';
+import Suppliers, { SupplierDetail } from './pages/Suppliers.jsx';
+import PoView from './pages/PoView.jsx';
+import Payables from './pages/Payables.jsx';
+import Users from './pages/Users.jsx';
+import Account from './pages/Account.jsx';
+import { can, isAdmin, SECTION_MODULE } from './permissions.js';
 
 // A menu entry is either a link (href) or a group with a dropdown (items).
+// `module` is the permission that shows the entry; `need: 'edit'` marks create links.
 const NAV = [
   { href: '#/dashboard', label: 'ภาพรวม' },
-  { href: '#/customers', label: 'ลูกค้า' },
+  { href: '#/customers', label: 'ลูกค้า', module: 'customers' },
   {
     label: 'เอกสารขาย',
     items: [
-      { href: '#/quotations', label: 'ใบเสนอราคา' },
-      { href: '#/invoices', label: 'ใบกำกับภาษี' },
-      { href: '#/receipts', label: 'ใบเสร็จรับเงิน' },
+      { href: '#/quotations', label: 'ใบเสนอราคา', module: 'sales' },
+      { href: '#/invoices', label: 'ใบกำกับภาษี', module: 'sales' },
+      { href: '#/receipts', label: 'ใบเสร็จรับเงิน', module: 'sales' },
       { divider: true },
-      { href: '#/quotations/new', label: '+ สร้างใบเสนอราคา' },
-      { href: '#/invoices/new', label: '+ สร้างใบกำกับภาษี' },
+      { href: '#/quotations/new', label: '+ สร้างใบเสนอราคา', module: 'sales', need: 'edit' },
+      { href: '#/invoices/new', label: '+ สร้างใบกำกับภาษี', module: 'sales', need: 'edit' },
+    ],
+  },
+  {
+    label: 'จัดซื้อ',
+    items: [
+      { href: '#/suppliers', label: 'ผู้ขาย', module: 'purchasing' },
+      { href: '#/purchase-orders', label: 'ใบสั่งซื้อ (PO)', module: 'purchasing' },
+      { href: '#/payables', label: 'เจ้าหนี้คงค้าง', module: 'purchasing' },
+      { divider: true },
+      { href: '#/purchase-orders/new', label: '+ สร้างใบสั่งซื้อ', module: 'purchasing', need: 'edit' },
     ],
   },
   {
     label: 'บัญชี',
     items: [
-      { href: '#/journal', label: 'สมุดรายวันทั่วไป' },
-      { href: '#/journal/expense', label: '+ บันทึกค่าใช้จ่าย' },
-      { href: '#/accounts', label: 'ผังบัญชี' },
+      { href: '#/journal', label: 'สมุดรายวันทั่วไป', module: 'accounting' },
+      { href: '#/journal/expense', label: '+ บันทึกค่าใช้จ่าย', module: 'accounting', need: 'edit' },
+      { href: '#/accounts', label: 'ผังบัญชี', module: 'accounting' },
     ],
   },
   {
     label: 'รายงาน',
     items: [
-      { href: '#/reports/trial', label: 'งบทดลอง' },
-      { href: '#/reports/income', label: 'งบกำไรขาดทุน' },
-      { href: '#/reports/balance', label: 'งบแสดงฐานะการเงิน' },
-      { href: '#/reports/vat', label: 'ภาษีมูลค่าเพิ่ม (ภ.พ.30)' },
+      { href: '#/reports/trial', label: 'งบทดลอง', module: 'reports' },
+      { href: '#/reports/income', label: 'งบกำไรขาดทุน', module: 'reports' },
+      { href: '#/reports/balance', label: 'งบแสดงฐานะการเงิน', module: 'reports' },
+      { href: '#/reports/vat', label: 'ภาษีมูลค่าเพิ่ม (ภ.พ.30)', module: 'reports' },
       { divider: true },
-      { href: '#/aging', label: 'ลูกหนี้คงค้าง (Aging)' },
+      { href: '#/aging', label: 'ลูกหนี้คงค้าง (Aging)', module: 'reports' },
     ],
   },
 ];
+
+// Menu filtered to what the user may open. Groups with nothing left disappear; stray dividers are dropped.
+function navFor(user) {
+  const allowed = (item) => can(user, item.module, item.need || 'view');
+  return NAV.flatMap((entry) => {
+    if (!entry.items) return allowed(entry) ? [entry] : [];
+    const items = entry.items
+      .filter((item) => item.divider || allowed(item))
+      .filter((item, i, list) => !item.divider || (i > 0 && i < list.length - 1 && !list[i - 1].divider));
+    return items.some((item) => !item.divider) ? [{ ...entry, items }] : [];
+  });
+}
+
+// Pages that create or change data need edit rights; everything else needs view.
+function pageNeed(parts) {
+  const [section, id, sub] = parts;
+  if (id === 'new' || sub === 'edit') return 'edit';
+  if (section === 'journal' && (id === 'new' || id === 'expense')) return 'edit';
+  return 'view';
+}
+
+function NoAccess() {
+  return (
+    <div className="card">
+      <h1>ไม่มีสิทธิ์เข้าถึงหน้านี้</h1>
+      <p className="muted">ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์</p>
+      <a className="button" href="#/dashboard">กลับหน้าภาพรวม</a>
+    </div>
+  );
+}
 
 function NavDropdown({ group, section, currentHash }) {
   const [open, setOpen] = useState(false);
@@ -141,10 +188,12 @@ function Login({ onLogin }) {
   );
 }
 
-function route(hash) {
+function route(hash, user) {
   const parts = hash.split('?')[0].split('/').filter(Boolean);
   const [section, id] = parts;
   const search = hash.split('?')[1] || '';
+  if (section === 'users') return <Users currentUser={user} />;
+  if (section === 'account') return <Account user={user} />;
   if (section === 'journal' && id === 'new') return <Journal creating />;
   if (section === 'journal' && id === 'expense') return <ExpenseForm />;
   if (section === 'journal') return <Journal />;
@@ -152,6 +201,13 @@ function route(hash) {
   if (section === 'settings') return <Settings />;
   if (section === 'receipts' && id) return <ReceiptView id={id} />;
   if (section === 'receipts') return <Receipts />;
+  if (section === 'suppliers' && id) return <SupplierDetail id={id} />;
+  if (section === 'suppliers') return <Suppliers />;
+  if (section === 'payables') return <Payables />;
+  if (section === 'purchase-orders' && id === 'new') return <DocumentEditor kind="po" />;
+  if (section === 'purchase-orders' && id && parts[2] === 'edit') return <DocumentEditor kind="po" id={id} />;
+  if (section === 'purchase-orders' && id) return <PoView id={id} />;
+  if (section === 'purchase-orders') return <DocumentList kind="po" />;
   // key=hash remounts the report when the tab or period changes, so stale data never renders.
   if (section === 'reports') return <Reports key={hash} tab={id || 'trial'} id={parts[2]} search={search} />;
   if (section === 'customers' && id) return <CustomerDetail id={id} />;
@@ -188,22 +244,31 @@ export default function App() {
   }
 
   const section = `#/${hash.split('/')[0]}`;
+  const parts = hash.split('?')[0].split('/').filter(Boolean);
+  const pageModule = SECTION_MODULE[parts[0]];
+  const allowedPage = parts[0] === 'users' ? isAdmin(user) : can(user, pageModule, pageNeed(parts));
+
   return (
     <div className="app">
       <header className="topbar">
         <strong>ระบบบัญชี</strong>
         <nav>
-          {NAV.map((item) => (item.items
+          {navFor(user).map((item) => (item.items
             ? <NavDropdown key={item.label} group={item} section={hash.split('/')[0].split('?')[0]} currentHash={hash} />
             : <a key={item.href} href={item.href} className={section === item.href ? 'active' : ''}>{item.label}</a>))}
         </nav>
         <div className="userbox">
-          <a href="#/settings" className={`company-btn ${section === '#/settings' ? 'active' : ''}`}>ข้อมูลบริษัท</a>
-          <span>{user.name}</span>
+          {isAdmin(user) && (
+            <a href="#/users" className={`company-btn ${section === '#/users' ? 'active' : ''}`}>ผู้ใช้งาน</a>
+          )}
+          {can(user, 'settings') && (
+            <a href="#/settings" className={`company-btn ${section === '#/settings' ? 'active' : ''}`}>ข้อมูลบริษัท</a>
+          )}
+          <a href="#/account" className="user-link" title="บัญชีของฉัน / เปลี่ยนรหัสผ่าน">{user.name}</a>
           <button className="ghost" onClick={logout}>ออกจากระบบ</button>
         </div>
       </header>
-      <main>{route(hash)}</main>
+      <main>{allowedPage ? route(hash, user) : <NoAccess />}</main>
     </div>
   );
 }

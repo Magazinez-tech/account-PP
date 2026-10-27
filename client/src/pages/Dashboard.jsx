@@ -81,6 +81,10 @@ export default function Dashboard() {
               <span className="muted">กำไรสุทธิปีนี้ (บาท)</span>
               <strong>{money(data.accounting.netProfitYtd)}</strong>
             </div>
+            <a className="mini" href="#/payables">
+              <span className="muted">เจ้าหนี้ค้างจ่าย (บาท)</span>
+              <strong>{money(data.payables)}</strong>
+            </a>
           </div>
           <div className="quick">
             <a className="button" href="#/reports/balance">งบแสดงฐานะการเงิน</a>

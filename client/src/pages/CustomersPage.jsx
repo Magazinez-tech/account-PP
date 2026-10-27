@@ -4,7 +4,7 @@ import { api } from '../api.js';
 const EMPTY = { name: '', company_name: '', tax_id: '', branch: '', address: '', contact_name: '', phone: '', email: '', credit_days: 30, note: '' };
 
 // Shared by the list (new customer) and the detail page (edit customer).
-export function CustomerForm({ initial, onSaved }) {
+export function CustomerForm({ initial, onSaved, nameLabel = 'ชื่อลูกค้า' }) {
   const [form, setForm] = useState({ ...EMPTY, ...initial });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -26,7 +26,7 @@ export function CustomerForm({ initial, onSaved }) {
 
   return (
     <form className="card form-grid" onSubmit={submit}>
-      <label>ชื่อลูกค้า *<input value={form.name} onChange={set('name')} required /></label>
+      <label>{nameLabel} *<input value={form.name} onChange={set('name')} required /></label>
       <label>ชื่อบริษัท<input value={form.company_name || ''} onChange={set('company_name')} /></label>
       <label>เลขประจำตัวผู้เสียภาษี (13 หลัก)<input value={form.tax_id || ''} onChange={set('tax_id')} maxLength={13} /></label>
       <label>สาขา<input value={form.branch || ''} onChange={set('branch')} placeholder="00000 หรือ สำนักงานใหญ่" /></label>

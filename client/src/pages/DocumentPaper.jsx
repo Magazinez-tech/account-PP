@@ -20,6 +20,16 @@ const WORDING = {
     left: 'ผู้รับสินค้า / บริการ',
     right: 'ผู้มีอำนาจลงนาม',
   },
+  po: {
+    title: 'ใบสั่งซื้อ',
+    dateLabel: 'วันที่สั่งซื้อ',
+    dueLabel: 'วันที่ต้องการรับสินค้า',
+    dueField: 'expected_date',
+    partyLabel: 'ชื่อผู้ขาย',
+    personLabel: 'ผู้ขอซื้อ',
+    left: 'ผู้ขาย (ยืนยันการสั่งซื้อ)',
+    right: 'ผู้อนุมัติการสั่งซื้อ',
+  },
   receipt: {
     title: 'ใบเสร็จรับเงิน',
     dateLabel: 'วันที่รับชำระ',
@@ -66,14 +76,14 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
 
       <section className="paper-info">
         <dl>
-          <dt>ชื่อลูกค้า</dt><dd>{dash(c.name)}</dd>
+          <dt>{w.partyLabel || 'ชื่อลูกค้า'}</dt><dd>{dash(c.name)}</dd>
           <dt>ชื่อบริษัท</dt><dd>{dash(c.company_name)}</dd>
           <dt>ที่อยู่</dt><dd>{address}</dd>
           <dt>เลขประจำตัวผู้เสียภาษี</dt><dd>{dash(c.tax_id)}</dd>
           <dt>เบอร์โทรศัพท์</dt><dd>{dash(c.phone)}</dd>
         </dl>
         <dl>
-          <dt>ชื่อผู้ขาย</dt><dd>{dash(doc.salesperson)}</dd>
+          <dt>{w.personLabel || 'ชื่อผู้ขาย'}</dt><dd>{dash(doc.salesperson)}</dd>
           <dt>เบอร์ติดต่อ</dt><dd>{dash(s.phone)}</dd>
           <dt>ชื่อโปรเจกต์</dt><dd>{dash(doc.project_name)}</dd>
           <dt>เลขที่อ้างอิง</dt><dd>{dash(doc.reference_no)}</dd>
@@ -108,7 +118,14 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
       </table>
 
       <section className="paper-bottom">
-        {kind === 'receipt' ? (
+        {kind === 'po' ? (
+          <div className="paper-pay">
+            <div className="paper-section-title">เงื่อนไขการชำระเงิน</div>
+            <div>เครดิต {c.credit_days ?? '-'} วัน นับจากวันที่รับสินค้า</div>
+            {doc.bill_no && <div>ใบกำกับภาษีผู้ขายเลขที่: {doc.bill_no}</div>}
+            {doc.received_date && <div>รับสินค้าวันที่: {date(doc.received_date)}</div>}
+          </div>
+        ) : kind === 'receipt' ? (
           <div className="paper-pay">
             <div className="paper-section-title">การรับชำระ</div>
             <div>วิธีชำระ: {METHOD_TEXT[doc.method] || dash(doc.method)}</div>
@@ -127,7 +144,7 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
           {doc.discount > 0 && <div><span>ส่วนลด</span><span>{money(doc.discount)}</span></div>}
           <div><span>ภาษีมูลค่าเพิ่ม (7.00%)</span><span>{money(doc.vat)}</span></div>
           <div className="paper-grand"><span>{kind === 'receipt' ? 'จำนวนเงินที่รับชำระ' : 'ยอดรวมสุทธิ'}</span><span>{money(doc.total)}</span></div>
-          {isInvoice && doc.status !== 'draft' && (
+          {((isInvoice && doc.status !== 'draft') || (kind === 'po' && ['received', 'paid'].includes(doc.status))) && (
             <>
               <div><span>ชำระแล้ว</span><span>{money(doc.paid)}</span></div>
               <div className="paper-grand"><span>คงค้าง</span><span>{money(outstanding)}</span></div>
