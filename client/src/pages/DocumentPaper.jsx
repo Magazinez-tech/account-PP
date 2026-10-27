@@ -174,7 +174,7 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
         <div>
           <div className="sign-line" />
           <div>{w.left}</div>
-          <div className="paper-muted">({dash(c.contact_name || c.name)})</div>
+          <div className="paper-muted">({dash(c.name)})</div>
           <div className="paper-muted">วันที่ ..................................</div>
         </div>
         <div>
