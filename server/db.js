@@ -307,6 +307,10 @@ CREATE TABLE IF NOT EXISTS products (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE products ADD COLUMN IF NOT EXISTS size TEXT;
+-- Size (ขนาด) is typed per document line.
+ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS size TEXT;
+ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS size TEXT;
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS size TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_lines_account ON journal_lines(account_id);
 CREATE INDEX IF NOT EXISTS idx_entries_source ON journal_entries(source, source_id);

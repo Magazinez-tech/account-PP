@@ -30,7 +30,6 @@ function ProductForm({ initial, onSave, onCancel }) {
       <h2 className="span-2" style={{ margin: 0 }}>{initial.id ? `แก้ไข ${initial.name}` : 'เพิ่มสินค้า / บริการ'}</h2>
       <label>รหัสสินค้า<input value={form.code} onChange={set('code')} placeholder="เช่น P001" /></label>
       <label>ชื่อสินค้า / บริการ *<input required value={form.name} onChange={set('name')} autoFocus /></label>
-      <label>ขนาด<input value={form.size} onChange={set('size')} placeholder="เช่น 60x120 ซม., 2 นิ้ว, XL" /></label>
       <label>หน่วย<input value={form.unit} onChange={set('unit')} placeholder="ชิ้น, ชุด, งาน, เดือน" /></label>
       <label>ราคาขาย (บาท, ไม่รวม VAT)
         <input className="num" type="number" min="0" step="0.01" value={form.price} onChange={set('price')} />
@@ -104,24 +103,23 @@ export default function Products({ canEdit }) {
       )}
 
       <div className="toolbar">
-        <input type="search" placeholder="ค้นหาจากรหัส ชื่อสินค้า หรือขนาด" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input type="search" placeholder="ค้นหาจากรหัสหรือชื่อสินค้า" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
       <div className="card table-wrap">
         <table>
           <thead>
             <tr>
-              <th>รหัส</th><th>ชื่อสินค้า / บริการ</th><th>ขนาด</th><th>หน่วย</th>
+              <th>รหัส</th><th>ชื่อสินค้า / บริการ</th><th>หน่วย</th>
               <th className="num">ราคาขาย</th><th className="num">ราคาทุน</th><th>สถานะ</th>{canEdit && <th></th>}
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan="8" className="muted">ยังไม่มีสินค้า</td></tr>}
+            {rows.length === 0 && <tr><td colSpan="7" className="muted">ยังไม่มีสินค้า</td></tr>}
             {rows.map((p) => (
               <tr key={p.id}>
                 <td>{p.code || '-'}</td>
                 <td>{p.name}{p.note && <div className="muted small">{p.note}</div>}</td>
-                <td>{p.size || '-'}</td>
                 <td>{p.unit || '-'}</td>
                 <td className="num">{money(p.price)}</td>
                 <td className="num">{p.cost ? money(p.cost) : '-'}</td>

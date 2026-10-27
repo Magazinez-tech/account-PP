@@ -27,9 +27,9 @@ export function projectOf(body) {
 
 export async function insertItems(d, table, parentColumn, parentId, lines) {
   for (const line of lines) {
-    await d.run(`INSERT INTO ${table} (${parentColumn}, description, qty, unit, unit_price, amount, sort)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [parentId, line.description, line.qty, line.unit, line.unit_price, line.amount, line.sort]);
+    await d.run(`INSERT INTO ${table} (${parentColumn}, description, qty, unit, unit_price, amount, sort, size)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [parentId, line.description, line.qty, line.unit, line.unit_price, line.amount, line.sort, line.size || null]);
   }
 }
 

@@ -4,9 +4,7 @@ import { money, toSatang } from '../format.js';
 import { CONFIG } from './docConfig.js';
 
 const VAT_RATE = 7;
-const blankItem = () => ({ description: '', qty: 1, unit: '', price: '' });
-// Text a catalog product puts on a document line, e.g. "กระเบื้อง ขนาด 60x60 ซม.".
-const lineText = (p) => (p.size ? `${p.name} ขนาด ${p.size}` : p.name);
+const blankItem = () => ({ description: '', size: '', qty: 1, unit: '', price: '' });
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Mirrors server/money.js so the user sees totals before saving. The server recalculates.
@@ -55,7 +53,7 @@ export default function DocumentEditor({ kind, id }) {
         reference_no: doc.reference_no || '',
         salesperson: doc.salesperson || '',
       });
-      setItems(doc.items.map((i) => ({ description: i.description, qty: i.qty, unit: i.unit || '', price: String(i.unit_price / 100) })));
+      setItems(doc.items.map((i) => ({ description: i.description, size: i.size || '', qty: i.qty, unit: i.unit || '', price: String(i.unit_price / 100) })));
       setLoaded(true);
     }).catch((e) => setError(e.message));
   }, [kind, id]);
@@ -69,11 +67,11 @@ export default function DocumentEditor({ kind, id }) {
 
   // Typing or picking a catalog name/code fills in the line. POs use the cost price when one is set.
   function setDescription(index, value) {
-    const p = products.find((x) => lineText(x) === value || (x.code && x.code === value));
+    const p = products.find((x) => x.name === value || (x.code && x.code === value));
     if (!p) return setItem(index, 'description', value);
     const price = kind === 'po' && p.cost ? p.cost : p.price;
     setItems(items.map((item, i) => (i === index
-      ? { ...item, description: lineText(p), unit: p.unit || item.unit, price: price ? String(price / 100) : item.price }
+      ? { ...item, description: p.name, unit: p.unit || item.unit, price: price ? String(price / 100) : item.price }
       : item)));
   }
 
@@ -84,7 +82,7 @@ export default function DocumentEditor({ kind, id }) {
       ...form,
       customer_id: Number(form.customer_id),
       discount: toSatang(form.discount),
-      items: items.map((i) => ({ description: i.description, qty: Number(i.qty), unit: i.unit, unit_price: toSatang(i.price) })),
+      items: items.map((i) => ({ description: i.description, size: i.size, qty: Number(i.qty), unit: i.unit, unit_price: toSatang(i.price) })),
     };
     try {
       const result = isEdit
@@ -110,7 +108,9 @@ export default function DocumentEditor({ kind, id }) {
         <label className="span-2">{cfg.partyLabel || 'ลูกค้า'} *
           <select value={form.customer_id} onChange={set('customer_id')} required>
             <option value="">-- เลือก{cfg.partyLabel || 'ลูกค้า'} --</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>{c.company_name ? `${c.company_name} (${c.name})` : c.name}</option>
+            ))}
           </select>
         </label>
         <label>วันที่ออกเอกสาร<input type="date" value={form.issue_date} onChange={set('issue_date')} /></label>
@@ -128,7 +128,7 @@ export default function DocumentEditor({ kind, id }) {
         <table className="items">
           <thead>
             <tr>
-              <th>รายละเอียด</th><th className="num">จำนวน</th><th>หน่วย</th>
+              <th>รายละเอียด</th><th>ขนาด</th><th className="num">จำนวน</th><th>หน่วย</th>
               <th className="num">ราคาต่อหน่วย (บาท, ไม่รวม VAT)</th><th className="num">รวม (บาท)</th><th></th>
             </tr>
           </thead>
@@ -139,6 +139,7 @@ export default function DocumentEditor({ kind, id }) {
                   <input list="product-list" value={item.description} placeholder="พิมพ์หรือเลือกจากรายการสินค้า"
                     onChange={(e) => setDescription(index, e.target.value)} />
                 </td>
+                <td><input value={item.size} placeholder="เช่น 60x120 ซม." onChange={(e) => setItem(index, 'size', e.target.value)} /></td>
                 <td><input className="num" type="number" min="0" step="any" value={item.qty} onChange={(e) => setItem(index, 'qty', e.target.value)} /></td>
                 <td><input value={item.unit} onChange={(e) => setItem(index, 'unit', e.target.value)} /></td>
                 <td><input className="num" type="number" min="0" step="0.01" value={item.price} onChange={(e) => setItem(index, 'price', e.target.value)} /></td>
@@ -153,7 +154,7 @@ export default function DocumentEditor({ kind, id }) {
         </table>
         <datalist id="product-list">
           {products.map((p) => (
-            <option key={p.id} value={lineText(p)}>
+            <option key={p.id} value={p.name}>
               {[p.code, p.unit, money(kind === 'po' && p.cost ? p.cost : p.price)].filter(Boolean).join(' · ')}
             </option>
           ))}

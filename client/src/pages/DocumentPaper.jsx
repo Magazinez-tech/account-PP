@@ -52,6 +52,7 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
   const address = c.address ? [c.address, c.branch && `(${c.branch})`].filter(Boolean).join(' ') : '-';
   const isInvoice = kind === 'invoice';
   const outstanding = doc.total - (doc.paid || 0);
+  const hasSize = (doc.items || []).some((item) => item.size);
 
   return (
     <div className="paper">
@@ -92,11 +93,13 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
         </dl>
       </section>
 
+      {/* The size column only appears when some line has a size. */}
       <table className="paper-items">
         <thead>
           <tr>
             <th className="c-no">ลำดับ</th>
             <th>รายการสินค้า</th>
+            {hasSize && <th>ขนาด</th>}
             <th className="num">จำนวน</th>
             <th>หน่วย</th>
             <th className="num">ราคา/หน่วย</th>
@@ -108,6 +111,7 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
             <tr key={item.id}>
               <td className="c-no">{i + 1}</td>
               <td className="pre">{item.description}</td>
+              {hasSize && <td>{item.size}</td>}
               <td className="num">{item.qty}</td>
               <td>{item.unit}</td>
               <td className="num">{money(item.unit_price)}</td>

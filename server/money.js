@@ -14,6 +14,7 @@ export function calcTotals(items, discount = 0) {
     return {
       description: String(item.description || '').trim(),
       qty,
+      size: item.size ? String(item.size).trim() : null,
       unit: item.unit ? String(item.unit).trim() : null,
       unit_price: unitPrice,
       amount: Math.round(qty * unitPrice),
