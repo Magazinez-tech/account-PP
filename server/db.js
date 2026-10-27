@@ -307,6 +307,10 @@ CREATE TABLE IF NOT EXISTS products (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE products ADD COLUMN IF NOT EXISTS size TEXT;
+-- Who created each document; their name prints on the approver signature line.
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
 -- Size (ขนาด) is typed per document line.
 ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS size TEXT;
 ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS size TEXT;

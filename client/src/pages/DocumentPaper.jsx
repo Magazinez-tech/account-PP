@@ -180,7 +180,7 @@ export default function DocumentPaper({ kind, doc, settings, copy = 'original' }
         <div>
           <div className="sign-line" />
           <div>{w.right}</div>
-          <div className="paper-muted">({dash(s.approver_name)})</div>
+          <div className="paper-muted">({dash(doc.created_by_name || s.approver_name)})</div>
           <div className="paper-muted">วันที่ {date(doc.issue_date)}</div>
         </div>
       </footer>

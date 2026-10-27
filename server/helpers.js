@@ -36,6 +36,10 @@ export async function insertItems(d, table, parentColumn, parentId, lines) {
 export async function loadDocument(table, itemsTable, parentColumn, id) {
   const doc = await db.one(`SELECT * FROM ${table} WHERE id = $1`, [id]);
   if (!doc) return null;
+  if (doc.created_by) {
+    const creator = await db.one('SELECT name, email FROM users WHERE id = $1', [doc.created_by]);
+    doc.created_by_name = creator ? creator.name || creator.email : null;
+  }
   doc.items = await db.many(`SELECT * FROM ${itemsTable} WHERE ${parentColumn} = $1 ORDER BY sort, id`, [id]);
   return doc;
 }

@@ -119,7 +119,11 @@ async function saveQuotation(d, id, body) {
 }
 
 api.post('/quotations', h(async (req, res) => {
-  const result = await tx((d) => saveQuotation(d, null, req.body));
+  const result = await tx(async (d) => {
+    const r = await saveQuotation(d, null, req.body);
+    await d.run('UPDATE quotations SET created_by = $1 WHERE id = $2', [req.user.id, r.id]);
+    return r;
+  });
   res.status(201).json(result);
 }));
 
@@ -164,6 +168,7 @@ api.post('/quotations/:id/convert', h(async (req, res) => {
       quotation.discount, quotation.subtotal, quotation.vat, quotation.total, quotation.note,
       quotation.project_name, quotation.no, quotation.salesperson]);
     await insertItems(d, 'invoice_items', 'invoice_id', row.id, quotation.items);
+    await d.run('UPDATE invoices SET created_by = $1 WHERE id = $2', [req.user.id, row.id]);
     await d.run(`UPDATE quotations SET invoice_id = $1, status = 'accepted', updated_at = now() WHERE id = $2`, [row.id, quotation.id]);
     return row.id;
   });
@@ -228,7 +233,11 @@ async function saveInvoice(d, id, body) {
 }
 
 api.post('/invoices', h(async (req, res) => {
-  res.status(201).json(await tx((d) => saveInvoice(d, null, req.body)));
+  res.status(201).json(await tx(async (d) => {
+    const r = await saveInvoice(d, null, req.body);
+    await d.run('UPDATE invoices SET created_by = $1 WHERE id = $2', [req.user.id, r.id]);
+    return r;
+  }));
 }));
 
 api.put('/invoices/:id', h(async (req, res) => {

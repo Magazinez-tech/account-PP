@@ -115,7 +115,11 @@ async function savePurchaseOrder(d, id, body) {
 }
 
 purchasing.post('/purchase-orders', h(async (req, res) => {
-  res.status(201).json(await tx((d) => savePurchaseOrder(d, null, req.body)));
+  res.status(201).json(await tx(async (d) => {
+    const r = await savePurchaseOrder(d, null, req.body);
+    await d.run('UPDATE purchase_orders SET created_by = $1 WHERE id = $2', [req.user.id, r.id]);
+    return r;
+  }));
 }));
 
 purchasing.put('/purchase-orders/:id', h(async (req, res) => {
