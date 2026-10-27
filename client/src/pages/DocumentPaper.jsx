@@ -1,0 +1,147 @@
+import { money, date } from '../format.js';
+
+const dash = (v) => (v ? v : '-');
+
+// Wording that differs between a quotation and a tax invoice. The layout is shared.
+const WORDING = {
+  quotation: {
+    title: 'ใบเสนอราคา',
+    dateLabel: 'วันที่ออกใบเสนอราคา',
+    dueLabel: 'วันที่ครบกำหนด',
+    dueField: 'valid_until',
+    left: 'ผู้สั่งซื้อสินค้า',
+    right: 'ผู้อนุมัติ',
+  },
+  invoice: {
+    title: 'ใบกำกับภาษี/ใบแจ้งหนี้',
+    dateLabel: 'วันที่ออกใบกำกับภาษี',
+    dueLabel: 'วันครบกำหนดชำระ',
+    dueField: 'due_date',
+    left: 'ผู้รับสินค้า / บริการ',
+    right: 'ผู้มีอำนาจลงนาม',
+  },
+};
+
+// A4 paper shared by quotations and tax invoices. The paper stays white in both themes.
+// copy: 'original' (ต้นฉบับ) or 'copy' (สำเนา)
+export default function DocumentPaper({ kind, doc, settings, copy = 'original' }) {
+  const w = WORDING[kind];
+  const s = settings || {};
+  const c = doc.customer || {};
+  const address = c.address ? [c.address, c.branch && `(${c.branch})`].filter(Boolean).join(' ') : '-';
+  const isInvoice = kind === 'invoice';
+  const outstanding = doc.total - (doc.paid || 0);
+
+  return (
+    <div className="paper">
+      <header className="paper-head">
+        <div className="paper-company">
+          <div className="paper-logo" aria-hidden="true">{(s.name || '?').slice(0, 1)}</div>
+          <div className="paper-company-name">{dash(s.name)}</div>
+          <div className="paper-muted">{s.address}</div>
+          {s.tax_id && <div className="paper-muted">เลขประจำตัวผู้เสียภาษี: {s.tax_id}</div>}
+          {s.phone && <div className="paper-muted">เบอร์: {s.phone}</div>}
+          {s.email && <div className="paper-muted">อีเมล: {s.email}</div>}
+          {s.website && <div className="paper-muted">เว็บไซต์: {s.website}</div>}
+        </div>
+        <div className="paper-title">
+          <div className="paper-copy">{copy === 'copy' ? 'สำเนา' : 'ต้นฉบับ'}</div>
+          <div className="paper-doc">{w.title}</div>
+          <div className="paper-no">{doc.no || '(ร่าง)'}</div>
+        </div>
+      </header>
+
+      <section className="paper-info">
+        <dl>
+          <dt>ชื่อลูกค้า</dt><dd>{dash(c.name)}</dd>
+          <dt>ชื่อบริษัท</dt><dd>{dash(c.company_name)}</dd>
+          <dt>ที่อยู่</dt><dd>{address}</dd>
+          <dt>เลขประจำตัวผู้เสียภาษี</dt><dd>{dash(c.tax_id)}</dd>
+          <dt>เบอร์โทรศัพท์</dt><dd>{dash(c.phone)}</dd>
+        </dl>
+        <dl>
+          <dt>ชื่อผู้ขาย</dt><dd>{dash(doc.salesperson)}</dd>
+          <dt>เบอร์ติดต่อ</dt><dd>{dash(s.phone)}</dd>
+          <dt>ชื่อโปรเจกต์</dt><dd>{dash(doc.project_name)}</dd>
+          <dt>เลขที่อ้างอิง</dt><dd>{dash(doc.reference_no)}</dd>
+          <dt>{w.dateLabel}</dt><dd>{date(doc.issue_date)}</dd>
+          <dt>{w.dueLabel}</dt><dd>{date(doc[w.dueField])}</dd>
+        </dl>
+      </section>
+
+      <table className="paper-items">
+        <thead>
+          <tr>
+            <th className="c-no">ลำดับ</th>
+            <th>รายการสินค้า</th>
+            <th className="num">จำนวน</th>
+            <th>หน่วย</th>
+            <th className="num">ราคา/หน่วย</th>
+            <th className="num">ยอดรวม</th>
+          </tr>
+        </thead>
+        <tbody>
+          {doc.items.map((item, i) => (
+            <tr key={item.id}>
+              <td className="c-no">{i + 1}</td>
+              <td className="pre">{item.description}</td>
+              <td className="num">{item.qty}</td>
+              <td>{item.unit}</td>
+              <td className="num">{money(item.unit_price)}</td>
+              <td className="num">{money(item.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <section className="paper-bottom">
+        <div className="paper-pay">
+          <div className="paper-section-title">ช่องทางการชำระเงิน</div>
+          <div>ธนาคาร: {dash(s.bank_name)}</div>
+          <div>เลขบัญชี: {dash(s.bank_account_no)}</div>
+          <div>ชื่อบัญชี: {dash(s.bank_account_name)}</div>
+        </div>
+        <div className="paper-sum">
+          <div><span>ยอดรวม</span><span>{money(doc.subtotal)}</span></div>
+          {doc.discount > 0 && <div><span>ส่วนลด</span><span>{money(doc.discount)}</span></div>}
+          <div><span>ภาษีมูลค่าเพิ่ม (7.00%)</span><span>{money(doc.vat)}</span></div>
+          <div className="paper-grand"><span>ยอดรวมสุทธิ</span><span>{money(doc.total)}</span></div>
+          {isInvoice && doc.status !== 'draft' && (
+            <>
+              <div><span>ชำระแล้ว</span><span>{money(doc.paid)}</span></div>
+              <div className="paper-grand"><span>คงค้าง</span><span>{money(outstanding)}</span></div>
+            </>
+          )}
+        </div>
+      </section>
+
+      {doc.note && (
+        <section className="paper-note">
+          <div className="paper-section-title">หมายเหตุ</div>
+          <div className="pre">{doc.note}</div>
+        </section>
+      )}
+      {!isInvoice && s.quotation_terms && (
+        <section className="paper-note">
+          <div className="paper-section-title">เงื่อนไข</div>
+          <div className="pre">{s.quotation_terms}</div>
+        </section>
+      )}
+
+      <footer className="paper-sign">
+        <div>
+          <div className="sign-line" />
+          <div>{w.left}</div>
+          <div className="paper-muted">({dash(c.contact_name || c.name)})</div>
+          <div className="paper-muted">วันที่ ..................................</div>
+        </div>
+        <div>
+          <div className="sign-line" />
+          <div>{w.right}</div>
+          <div className="paper-muted">({dash(s.approver_name)})</div>
+          <div className="paper-muted">วันที่ {date(doc.issue_date)}</div>
+        </div>
+      </footer>
+    </div>
+  );
+}
