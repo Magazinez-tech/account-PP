@@ -294,6 +294,20 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Product / service catalog picked from when writing document lines. Prices in satang, before VAT.
+CREATE TABLE IF NOT EXISTS products (
+  id SERIAL PRIMARY KEY,
+  code TEXT,
+  name TEXT NOT NULL,
+  unit TEXT,
+  price INTEGER NOT NULL DEFAULT 0,
+  cost INTEGER NOT NULL DEFAULT 0,
+  note TEXT,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS size TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_lines_account ON journal_lines(account_id);
 CREATE INDEX IF NOT EXISTS idx_entries_source ON journal_entries(source, source_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
@@ -315,6 +329,7 @@ ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE purchase_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE purchase_order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE supplier_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 
 INSERT INTO company_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 `;

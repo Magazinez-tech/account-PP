@@ -5,6 +5,8 @@ import { CONFIG } from './docConfig.js';
 
 const VAT_RATE = 7;
 const blankItem = () => ({ description: '', qty: 1, unit: '', price: '' });
+// Text a catalog product puts on a document line, e.g. "กระเบื้อง ขนาด 60x60 ซม.".
+const lineText = (p) => (p.size ? `${p.name} ขนาด ${p.size}` : p.name);
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Mirrors server/money.js so the user sees totals before saving. The server recalculates.
@@ -22,6 +24,7 @@ export default function DocumentEditor({ kind, id }) {
   const preselected = new URLSearchParams(window.location.hash.split('?')[1] || '').get('customer') || '';
 
   const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
   const [form, setForm] = useState({
     customer_id: preselected,
     issue_date: today(),
@@ -39,6 +42,7 @@ export default function DocumentEditor({ kind, id }) {
 
   useEffect(() => {
     api('GET', cfg.partyApi || '/customers').then(setCustomers).catch((e) => setError(e.message));
+    api('GET', '/products?active=1').then(setProducts).catch(() => setProducts([]));
     if (!isEdit) return;
     api('GET', `${cfg.api}/${id}`).then((doc) => {
       setForm({
@@ -61,6 +65,16 @@ export default function DocumentEditor({ kind, id }) {
 
   function setItem(index, key, value) {
     setItems(items.map((item, i) => (i === index ? { ...item, [key]: value } : item)));
+  }
+
+  // Typing or picking a catalog name/code fills in the line. POs use the cost price when one is set.
+  function setDescription(index, value) {
+    const p = products.find((x) => lineText(x) === value || (x.code && x.code === value));
+    if (!p) return setItem(index, 'description', value);
+    const price = kind === 'po' && p.cost ? p.cost : p.price;
+    setItems(items.map((item, i) => (i === index
+      ? { ...item, description: lineText(p), unit: p.unit || item.unit, price: price ? String(price / 100) : item.price }
+      : item)));
   }
 
   async function save() {
@@ -121,7 +135,10 @@ export default function DocumentEditor({ kind, id }) {
           <tbody>
             {items.map((item, index) => (
               <tr key={index}>
-                <td><input value={item.description} onChange={(e) => setItem(index, 'description', e.target.value)} /></td>
+                <td>
+                  <input list="product-list" value={item.description} placeholder="พิมพ์หรือเลือกจากรายการสินค้า"
+                    onChange={(e) => setDescription(index, e.target.value)} />
+                </td>
                 <td><input className="num" type="number" min="0" step="any" value={item.qty} onChange={(e) => setItem(index, 'qty', e.target.value)} /></td>
                 <td><input value={item.unit} onChange={(e) => setItem(index, 'unit', e.target.value)} /></td>
                 <td><input className="num" type="number" min="0" step="0.01" value={item.price} onChange={(e) => setItem(index, 'price', e.target.value)} /></td>
@@ -134,6 +151,13 @@ export default function DocumentEditor({ kind, id }) {
             ))}
           </tbody>
         </table>
+        <datalist id="product-list">
+          {products.map((p) => (
+            <option key={p.id} value={lineText(p)}>
+              {[p.code, p.unit, money(kind === 'po' && p.cost ? p.cost : p.price)].filter(Boolean).join(' · ')}
+            </option>
+          ))}
+        </datalist>
         <button className="ghost" onClick={() => setItems([...items, blankItem()])}>+ เพิ่มรายการ</button>
       </div>
 

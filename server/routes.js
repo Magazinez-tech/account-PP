@@ -7,6 +7,7 @@ import { accounting } from './accounting-routes.js';
 import { BizError } from './errors.js';
 import { h, today, addDays, text, projectOf, insertItems, loadDocument, partyFields } from './helpers.js';
 import { purchasing } from './purchase-routes.js';
+import { products } from './product-routes.js';
 import { users } from './users-routes.js';
 import { checkPermission } from './permissions.js';
 
@@ -16,6 +17,7 @@ api.use(checkPermission);
 api.use(users);
 api.use(accounting);
 api.use(purchasing);
+api.use(products);
 
 
 // ---------- Customers ----------

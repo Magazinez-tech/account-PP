@@ -19,6 +19,7 @@ import PoView from './pages/PoView.jsx';
 import Payables from './pages/Payables.jsx';
 import Users from './pages/Users.jsx';
 import Account from './pages/Account.jsx';
+import Products from './pages/Products.jsx';
 import { can, isAdmin, SECTION_MODULE } from './permissions.js';
 
 // A menu entry is either a link (href) or a group with a dropdown (items).
@@ -26,6 +27,7 @@ import { can, isAdmin, SECTION_MODULE } from './permissions.js';
 const NAV = [
   { href: '#/dashboard', label: 'ภาพรวม' },
   { href: '#/customers', label: 'ลูกค้า', module: 'customers' },
+  { href: '#/products', label: 'สินค้า', module: 'products' },
   {
     label: 'เอกสารขาย',
     items: [
@@ -210,6 +212,7 @@ function route(hash, user) {
   if (section === 'purchase-orders') return <DocumentList kind="po" />;
   // key=hash remounts the report when the tab or period changes, so stale data never renders.
   if (section === 'reports') return <Reports key={hash} tab={id || 'trial'} id={parts[2]} search={search} />;
+  if (section === 'products') return <Products canEdit={can(user, 'products', 'edit')} />;
   if (section === 'customers' && id) return <CustomerDetail id={id} />;
   if (section === 'customers') return <CustomersPage />;
   if ((section === 'quotations' || section === 'invoices') && id === 'new') {

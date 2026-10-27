@@ -3,6 +3,7 @@
 
 export const MODULES = [
   { key: 'customers', label: 'ลูกค้า', hint: 'รายชื่อลูกค้า' },
+  { key: 'products', label: 'รายการสินค้า', hint: 'สินค้า / บริการ และราคา' },
   { key: 'sales', label: 'เอกสารขาย', hint: 'ใบเสนอราคา ใบกำกับภาษี รับชำระ ใบเสร็จ' },
   { key: 'purchasing', label: 'จัดซื้อ', hint: 'ผู้ขาย ใบสั่งซื้อ จ่ายชำระ เจ้าหนี้คงค้าง' },
   { key: 'accounting', label: 'บัญชี', hint: 'สมุดรายวัน ค่าใช้จ่าย ผังบัญชี' },
@@ -24,6 +25,7 @@ export function can(user, module, need = 'view') {
 // Module that guards each page (first part of the hash route). Pages not listed are open to everyone.
 export const SECTION_MODULE = {
   customers: 'customers',
+  products: 'products',
   quotations: 'sales',
   invoices: 'sales',
   receipts: 'sales',

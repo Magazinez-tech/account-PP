@@ -1,7 +1,7 @@
 // Access control. Staff users get a level per module; admins can do everything, including managing users.
 // GET requests need "view", anything that changes data needs "edit". Checked on every /api request.
 
-export const MODULES = ['customers', 'sales', 'purchasing', 'accounting', 'reports', 'settings'];
+export const MODULES = ['customers', 'products', 'sales', 'purchasing', 'accounting', 'reports', 'settings'];
 export const LEVELS = ['none', 'view', 'edit'];
 
 // API path prefix → module. First match wins, so more specific prefixes come first.
@@ -9,6 +9,7 @@ const RULES = [
   ['/reports/payables', 'purchasing'],
   ['/reports', 'reports'],
   ['/customers', 'customers'],
+  ['/products', 'products'],
   ['/quotations', 'sales'],
   ['/invoices', 'sales'],
   ['/payments', 'sales'],
@@ -61,6 +62,9 @@ export function checkPermission(req, res, next) {
   if (path === '/settings' && need === 'view') return next();
   // Choosing a customer on a sales document needs the customer list.
   if (path === '/customers' && need === 'view' && allows(user, 'sales', 'view')) return next();
+  // Picking catalog items on a sales document or PO needs the product list.
+  if (path === '/products' && need === 'view'
+      && (allows(user, 'sales', 'view') || allows(user, 'purchasing', 'view'))) return next();
   // Ledger links in reports need the chart of accounts.
   if (path === '/accounts' && need === 'view' && allows(user, 'reports', 'view')) return next();
 
